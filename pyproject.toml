@@ -1,0 +1,29 @@
+[project]
+name = "emu-sync"
+version = "0.1.0"
+description = "Đồng bộ thao tác giữa nhiều giả lập Android: bắt input của máy master qua getevent, bơm sang các máy khác qua scrcpy-server (control-only)."
+requires-python = ">=3.11"
+dependencies = [
+    "adbutils>=2.7",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+macos = ["pyobjc-framework-Cocoa>=10.0"]
+desktop = ["pywebview>=5.0", "pynput>=1.7"]
+build = ["pyinstaller>=6.0"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+emu-sync = "emu_sync.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/emu_sync"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

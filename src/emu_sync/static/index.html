@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>emu-sync</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, system-ui, "Segoe UI", sans-serif; background: #101316; color: #e9ebee; }
+  header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 18px; background: #171b20; border-bottom: 1px solid #262c34; position: sticky; top: 0; z-index: 3; }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; }
+  .pill { background: #222831; border-radius: 999px; padding: 3px 11px; font-size: 12px; white-space: nowrap; }
+  .pill.on { background: #1d4d2e; color: #c9f7d6; }
+  .pill.warn { background: #4d3c14; color: #ffd47e; }
+  button { background: #2b6cb0; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
+  button.big { padding: 10px 18px; font-weight: 600; }
+  button.secondary { background: #313943; font-weight: 400; }
+  button:disabled { opacity: .45; cursor: default; }
+  #error { color: #ffb4b4; font-size: 13px; flex: 1 1 220px; }
+
+  .hint { margin: 14px 18px 0; padding: 10px 14px; border-radius: 10px; background: #1a2333; border: 1px solid #2c3a52; font-size: 14px; }
+  .hint b { color: #ffd47e; }
+
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; padding: 16px 18px 40px; }
+  .tile { background: #171b20; border: 1px solid #262c34; border-radius: 12px; overflow: hidden; }
+  .tile.master { border-color: #e0a13a; box-shadow: 0 0 0 2px rgba(224,161,58,.25); }
+  .tile img, .prev-off { width: 100%; display: block; background: #0c0f12; aspect-ratio: 9 / 19.5; object-fit: contain; }
+  .prev-off { display: flex; align-items: center; justify-content: center; color: #5b6672; font-size: 13px; }
+  .tile .meta { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .name-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  .machine { font-size: 17px; font-weight: 700; }
+  .badge { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: #313943; white-space: nowrap; }
+  .badge.master { background: #e0a13a; color: #241a05; font-weight: 700; }
+  .sub { color: #96a1ac; font-size: 12px; }
+  .status { font-size: 13px; color: #b9c2cc; }
+  .status.good { color: #9fe0b3; }
+  .status.warn { color: #f2c46d; }
+  .controls { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  label.switch { display: flex; gap: 7px; align-items: center; font-size: 13px; cursor: pointer; user-select: none; }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: #2b6cb0; }
+  details.adv { border-top: 1px solid #232a32; padding-top: 8px; }
+  details.adv summary { cursor: pointer; color: #96a1ac; font-size: 12px; }
+  .adv-grid { display: flex; flex-direction: column; gap: 8px; padding: 8px 0 2px; }
+  .adv-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #96a1ac; }
+  .adv-row input[type="number"], .adv-row input[type="text"] { background: #0e1114; border: 1px solid #2a313a; color: #e9ebee; border-radius: 6px; padding: 4px 6px; font-size: 12px; }
+  .adv-row button { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
+
+  .empty { margin: 40px auto; max-width: 560px; text-align: center; padding: 28px; background: #171b20; border: 1px dashed #2c343d; border-radius: 14px; }
+  .empty h2 { margin: 0 0 8px; font-size: 18px; }
+  .empty ol { text-align: left; margin: 12px auto; max-width: 420px; color: #b9c2cc; }
+  .empty li { margin: 4px 0; }
+  body { padding-bottom: 90px; }
+
+  footer { position: fixed; left: 0; right: 0; bottom: 0; background: #171b20f2; border-top: 1px solid #262c34; padding: 8px 18px; backdrop-filter: blur(6px); }
+  footer .adv-row input[type="text"] { width: 170px; }
+
+  .drawer { position: fixed; right: 16px; bottom: 78px; width: min(560px, 90vw); max-height: 46vh; background: #12161a; border: 1px solid #2a313a; border-radius: 12px; display: flex; flex-direction: column; z-index: 4; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  .drawer.hidden { display: none; }
+  .drawer-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #232a32; font-size: 13px; }
+  .drawer-head .grow { flex: 1; }
+  #drawer-log { margin: 0; padding: 10px 12px; overflow: auto; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #a9d5ff; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>emu-sync</h1>
+  <span class="pill" id="run-state">đang tải…</span>
+  <button class="big" id="toggle-run">Bắt đầu</button>
+  <button class="secondary" id="pause-btn" style="display:none">⏸ Tạm dừng nhanh</button>
+  <button class="secondary" id="scan">Tìm máy ảo</button>
+  <button class="secondary" id="preview-btn">Hiện màn hình</button>
+  <button class="secondary" id="drawer-btn">Nhật ký input</button>
+  <span id="error"></span>
+</header>
+
+<div class="hint" id="hint" style="display:none"></div>
+<main id="grid"></main>
+
+<div class="drawer hidden" id="drawer">
+  <div class="drawer-head">
+    <b>Nhật ký input</b>
+    <span class="sub" id="drawer-info"></span>
+    <span class="grow"></span>
+    <button class="secondary" onclick="clearLog()">Xoá</button>
+    <button class="secondary" onclick="toggleDrawer()">Đóng</button>
+  </div>
+  <pre id="drawer-log"></pre>
+</div>
+
+<footer>
+  <details class="adv">
+    <summary style="color:#96a1ac;font-size:12px;cursor:pointer">Nâng cao</summary>
+    <div class="adv-row" style="padding-top:8px">
+      <span>Kết nối ADB thủ công:</span>
+      <input type="text" id="connect-addr" placeholder="127.0.0.1:5555" data-keep>
+      <button class="secondary" onclick="connectAddress()">Kết nối</button>
+      <span id="connect-out" class="sub"></span>
+      <span class="grow" style="flex:1"></span>
+      <span class="sub" id="stats-line"></span>
+      <span class="sub" id="hotkey-line"></span>
+    </div>
+    <div class="adv-row sub">Tương đương CLI: <code>emu-sync devices / tap / scroll / key / back / sniff / run / ui</code></div>
+  </details>
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let state = null;
+let signature = "";
+let lastEventId = 0;
+let drawerOpen = false;
+let previewOn = false;
+
+async function api(path, body) {
+  const options = body
+    ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+    : {};
+  const res = await fetch(path, options);
+  if (!res.ok) throw new Error((await res.text()).slice(0, 300));
+  return res.json();
+}
+
+function machineLabel(index) { return "Máy " + (index + 1); }
+
+function statusText(d) {
+  if (d.is_master) {
+    return state.running
+      ? (state.paused ? "Bạn đang thao tác trên máy này (đồng bộ đang tạm dừng)." : "Bạn đang thao tác trên máy này — các máy khác chạy theo.")
+      : "Bấm Bắt đầu để đồng bộ thao tác.";
+  }
+  if (d.session_state === "error") return "Lỗi kết nối — bấm Thử lại trong Nâng cao.";
+  if (d.session_state === "starting") return "Đang kết nối…";
+  if (!state.running) return "Chưa bật đồng bộ.";
+  if (!d.sync_enabled) return "Không chạy theo máy chính.";
+  if (state.paused) return "Đồng bộ đang tạm dừng.";
+  return "Sẽ chạy theo máy chính.";
+}
+
+function statusClass(d) {
+  if (d.is_master) return "good";
+  if (d.session_state === "error") return "warn";
+  if (state.running && d.sync_enabled && d.session_state === "running") return "good";
+  return "";
+}
+
+function signatureOf(s) {
+  return JSON.stringify([
+    s.running, s.paused, s.master,
+    s.devices.map((d) => [d.serial, d.name, d.is_master, d.sync_enabled, d.session_state, d.sniffing]),
+  ]);
+}
+
+function tileHtml(d, index) {
+  const masterBadge = d.is_master ? '<span class="badge master">MÁY CHÍNH</span>' : "";
+  const sniffLabel = d.sniffing ? "Dừng nghe" : "Nghe thử";
+  const sessState = d.session_state === "running" ? "đã kết nối" : d.session_state === "error" ? "lỗi" : d.session_state;
+  return `
+  <div class="tile ${d.is_master ? "master" : ""}" data-serial="${d.serial}">
+    ${previewOn ? `<img id="img-${d.serial}" alt="${d.serial}">` : `<div class="prev-off">Xem trước đang tắt</div>`}
+    <div class="meta">
+      <div class="name-row">
+        <span class="machine">${machineLabel(index)}</span>
+        ${masterBadge}
+      </div>
+      <div class="sub">${d.name || d.serial} · ${d.serial}</div>
+      <div class="status ${statusClass(d)}">${statusText(d)}</div>
+      <div class="controls">
+        <label class="switch">
+          <input type="checkbox" ${d.sync_enabled ? "checked" : ""} onchange="toggleSync('${d.serial}', this.checked)">
+          Nhận thao tác đồng bộ
+        </label>
+        <button ${d.is_master ? "disabled" : ""} onclick="setMaster('${d.serial}')">Chọn làm máy chính</button>
+      </div>
+      <details class="adv">
+        <summary>Nâng cao (thao tác trực tiếp, nghe input, chẩn đoán)</summary>
+        <div class="adv-grid">
+          <div class="adv-row">
+            <span>x</span><input type="number" id="ax-${d.serial}" value="540" data-keep>
+            <span>y</span><input type="number" id="ay-${d.serial}" value="1200" data-keep>
+            <button class="secondary" onclick="actTap('${d.serial}')">Tap</button>
+            <span>· cuộn</span>
+            <input type="number" id="dy-${d.serial}" value="-3" step="0.5" data-keep style="width:60px">
+            <button class="secondary" onclick="actScroll('${d.serial}')">Scroll</button>
+          </div>
+          <div class="adv-row">
+            <span>keycode</span><input type="number" id="kc-${d.serial}" value="66" data-keep style="width:64px">
+            <button class="secondary" onclick="actKey('${d.serial}')">Gửi phím</button>
+            <button class="secondary" onclick="doAction('${d.serial}','back',{})">Back</button>
+            <button class="secondary" onclick="sniffToggle('${d.serial}')">${sniffLabel}</button>
+          </div>
+          <div class="adv-row">
+            <input type="text" id="tx-${d.serial}" placeholder="gõ chữ để gửi…" data-keep style="width:160px">
+            <button class="secondary" onclick="actText('${d.serial}')">Gửi chữ</button>
+          </div>
+          <div class="adv-row">
+            <span class="sub">session: ${sessState} · đã gửi: <span id="sent-${d.serial}">${d.sent}</span></span>
+            <button class="secondary" onclick="restartSession('${d.serial}')">Thử lại kết nối</button>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>`;
+}
+
+function emptyHtml() {
+  return `
+  <div class="empty">
+    <h2>Chưa thấy máy ảo nào</h2>
+    <ol>
+      <li>Mở trình giả lập của bạn (BlueStacks, LDPlayer, MEmu, AVD…)</li>
+      <li>Bấm <b>Tìm máy ảo</b> ở trên — emu-sync sẽ tự dò và kết nối</li>
+    </ol>
+    <button class="big" onclick="scanDevices()">Tìm máy ảo</button>
+  </div>`;
+}
+
+function refreshPreviews() {
+  if (!state || !previewOn) return;
+  for (const d of state.devices) {
+    const img = $("img-" + d.serial);
+    if (img) img.src = `/api/preview/${encodeURIComponent(d.serial)}?t=${Date.now()}`;
+  }
+}
+
+function snapshotInputs() {
+  const values = {};
+  document.querySelectorAll("input[data-keep]").forEach((el) => { values[el.id] = el.value; });
+  return values;
+}
+
+function restoreInputs(values) {
+  for (const [id, value] of Object.entries(values)) {
+    const el = $(id);
+    if (el) el.value = value;
+  }
+}
+
+function updateHint() {
+  const hint = $("hint");
+  if (!state || !state.running || !state.master) { hint.style.display = "none"; return; }
+  const index = state.devices.findIndex((d) => d.serial === state.master);
+  if (index < 0) { hint.style.display = "none"; return; }
+  hint.style.display = "block";
+  if (state.paused) {
+    const key = state.hotkey ? `<b>${state.hotkey}</b>` : "nút <b>Tiếp tục đồng bộ</b>";
+    hint.innerHTML = `⏸ Đồng bộ đang tạm dừng — bạn có thể thao tác riêng từng máy. Bấm ${key} để bật lại.`;
+  } else {
+    hint.innerHTML = `👉 Bạn thao tác trên <b>${machineLabel(index)}</b> (cửa sổ giả lập). Các máy còn lại sẽ tự chạy theo.`;
+  }
+}
+
+async function refreshState() {
+  try {
+    state = await api("/api/state");
+    if (state.running && state.paused) {
+      $("run-state").textContent = "⏸ Tạm dừng đồng bộ";
+      $("run-state").className = "pill warn";
+    } else if (state.running) {
+      $("run-state").textContent = `Đang đồng bộ · ${state.devices.length} máy`;
+      $("run-state").className = "pill on";
+    } else {
+      $("run-state").textContent = "Đã dừng";
+      $("run-state").className = "pill";
+    }
+    $("toggle-run").textContent = state.running ? "Dừng sync" : "Bắt đầu";
+    const pauseBtn = $("pause-btn");
+    pauseBtn.style.display = state.running ? "" : "none";
+    pauseBtn.textContent = state.paused
+      ? `▶ Tiếp tục đồng bộ${state.hotkey ? ` (${state.hotkey})` : ""}`
+      : `⏸ Tạm dừng nhanh${state.hotkey ? ` (${state.hotkey})` : ""}`;
+    $("hotkey-line").textContent = state.hotkey ? `Phím tắt bật/tắt đồng bộ: ${state.hotkey}` : "";
+    $("stats-line").textContent =
+      `thống kê: ${state.stats.count} thao tác · phản hồi p50 ${state.stats.p50_ms.toFixed(1)}ms / p95 ${state.stats.p95_ms.toFixed(1)}ms`;
+    $("error").textContent = state.last_error || "";
+
+    const sig = signatureOf(state);
+    if (sig !== signature) {
+      signature = sig;
+      const saved = snapshotInputs();
+      $("grid").innerHTML = state.devices.length
+        ? state.devices.map((d, i) => tileHtml(d, i)).join("")
+        : emptyHtml();
+      restoreInputs(saved);
+      updateHint();
+      refreshPreviews();
+    } else {
+      for (const d of state.devices) {
+        const el = $("sent-" + d.serial);
+        if (el) el.textContent = d.sent;
+      }
+      updateHint();
+    }
+  } catch (e) {
+    $("error").textContent = String(e);
+  }
+}
+
+// ----- hành động -----
+window.setMaster = async (serial) => { try { await api("/api/master", { serial }); await refreshState(); } catch (e) { alert(e); } };
+window.toggleSync = async (serial, enabled) => { try { await api("/api/sync", { serial, enabled }); await refreshState(); } catch (e) { alert(e); } };
+window.restartSession = async (serial) => { try { await api("/api/session/restart", { serial }); await refreshState(); } catch (e) { alert(e); } };
+window.doAction = async (serial, action, params) => { try { await api("/api/action", { serial, action, params }); } catch (e) { alert(e); } };
+window.actTap = (serial) => doAction(serial, "tap", { x: +$("ax-" + serial).value, y: +$("ay-" + serial).value });
+window.actScroll = (serial) => doAction(serial, "scroll", { x: $(`ax-${serial}`).value, y: $(`ay-${serial}`).value, dy: +$("dy-" + serial).value, repeat: 3 });
+window.actKey = (serial) => doAction(serial, "key", { keycode: +$("kc-" + serial).value });
+window.actText = (serial) => {
+  const text = $("tx-" + serial).value;
+  if (text) doAction(serial, "text", { text });
+};
+window.sniffToggle = async (serial) => {
+  const device = state.devices.find((d) => d.serial === serial);
+  try {
+    await api("/api/sniff", { serial, enabled: !(device && device.sniffing) });
+    await refreshState();
+    if (!drawerOpen) toggleDrawer();
+  } catch (e) { alert(e); }
+};
+window.scanDevices = async () => {
+  $("scan").disabled = true;
+  $("scan").textContent = "Đang tìm…";
+  try {
+    await api("/api/scan", {});
+  } catch (e) {
+    $("error").textContent = String(e);
+  } finally {
+    $("scan").disabled = false;
+    $("scan").textContent = "Tìm máy ảo";
+    await refreshState();
+  }
+};
+window.connectAddress = async () => {
+  const address = $("connect-addr").value.trim();
+  if (!address) return;
+  try {
+    const res = await api("/api/connect", { address });
+    $("connect-out").textContent = res.output || "ok";
+    await refreshState();
+  } catch (e) {
+    $("connect-out").textContent = String(e);
+  }
+};
+
+// ----- nhật ký input -----
+window.toggleDrawer = () => {
+  drawerOpen = !drawerOpen;
+  $("drawer").classList.toggle("hidden", !drawerOpen);
+  if (drawerOpen) pollEvents();
+};
+window.clearLog = () => { $("drawer-log").textContent = ""; };
+
+async function pollEvents() {
+  if (!drawerOpen) return;
+  try {
+    const res = await api(`/api/events?after=${lastEventId}`);
+    if (res.events.length) {
+      const log = $("drawer-log");
+      for (const ev of res.events) {
+        lastEventId = Math.max(lastEventId, ev.id);
+        log.textContent += `[${ev.t}] ${ev.serial}: ${ev.text}\n`;
+      }
+      const lines = log.textContent.split("\n");
+      if (lines.length > 300) log.textContent = lines.slice(-300).join("\n");
+      log.scrollTop = log.scrollHeight;
+    }
+    const sniffing = state ? state.devices.filter((d) => d.sniffing).map((d) => d.serial) : [];
+    $("drawer-info").textContent = sniffing.length ? `đang nghe: ${sniffing.join(", ")}` : "chưa bật nghe máy nào";
+  } catch (e) { /* ignore */ }
+}
+
+$("toggle-run").onclick = async () => {
+  try { await api("/api/run", { enabled: !(state && state.running) }); await refreshState(); } catch (e) { alert(e); }
+};
+$("scan").onclick = scanDevices;
+$("pause-btn").onclick = async () => {
+  try { await api("/api/pause", { enabled: !(state && state.paused) }); await refreshState(); } catch (e) { alert(e); }
+};
+$("drawer-btn").onclick = toggleDrawer;
+$("preview-btn").onclick = () => {
+  previewOn = !previewOn;
+  $("preview-btn").textContent = previewOn ? "Ẩn màn hình" : "Hiện màn hình";
+  signature = "";
+  refreshState();
+};
+
+refreshState();
+setInterval(refreshState, 1000);
+setInterval(refreshPreviews, 2000);
+setInterval(pollEvents, 800);
+</script>
+</body>
+</html>
