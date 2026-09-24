@@ -16,6 +16,10 @@ from .scrcpy import const as C
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 _SIZE_RE = re.compile(r"(Physical|Override) size:\s*(\d+)x(\d+)")
+# <repo>/tools/platform-tools/adb(.exe) — bản adb tải kèm (install_windows.bat)
+_REPO_TOOLS_ADB = Path(__file__).resolve().parents[2] / "tools" / "platform-tools" / (
+    "adb.exe" if os.name == "nt" else "adb"
+)
 
 
 def no_window_kwargs() -> dict:
@@ -26,11 +30,13 @@ def no_window_kwargs() -> dict:
 
 
 def adb_binary() -> str:
-    """Đường dẫn adb: ưu tiên PATH, fallback binary do adbutils cung cấp."""
+    """Đường dẫn adb: PATH → tools/platform-tools (bản tải kèm) → adbutils."""
     path = shutil.which("adb")
     if path:
         return path
-    from adbutils import adb_path  # adbutils tự tải/cung cấp adb binary
+    if _REPO_TOOLS_ADB.is_file():
+        return str(_REPO_TOOLS_ADB)
+    from adbutils import adb_path
 
     return adb_path()
 

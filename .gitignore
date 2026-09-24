@@ -9,3 +9,5 @@ dist/
 build/
 *.spec
 scratch/
+tools/
+

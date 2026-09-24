@@ -57,16 +57,28 @@ trực tiếp trên **cửa sổ giả lập** đó, các máy còn lại chạy
 
 ## Setup Windows (từ đầu)
 
+**Cách 1 — CMD, KHÔNG cần PowerShell (khuyến nghị):**
+
+1. Cài **Python 3.11+** từ <https://www.python.org/downloads/windows/> —
+   khi cài nhớ tick **“Add python.exe to PATH”**.
+2. Trong thư mục repo: **double-click `scripts\install_windows.bat`**
+   (tự tải adb nếu thiếu + tạo `.venv` + cài dependencies; cần mạng).
+3. **Double-click `scripts\EmuSync.bat`** để mở app.
+
+Chạy thủ công trong CMD (nếu muốn tự làm từng bước):
+
+```bat
+cd <thu-muc-repo>
+python -m venv .venv
+.venv\Scripts\python -m pip install -e ".[desktop]"
+.venv\Scripts\emu-sync.exe app
+```
+
+**Cách 2 — PowerShell (nếu muốn dùng `uv`):**
+
 ```powershell
-# 1) Cài uv (nếu chưa có)
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# 2) Trong thư mục repo: cài môi trường Python
 powershell -ExecutionPolicy ByPass -File scripts\install_windows.ps1
-
-# 3) Chạy app
-#    - double-click scripts\EmuSync.bat
-#    - hoặc trong terminal: uv run emu-sync app
 ```
 
 - Cần **WebView2 runtime** (Windows 10/11 hầu hết có sẵn; nếu thiếu tải "WebView2 Evergreen
@@ -74,14 +86,15 @@ powershell -ExecutionPolicy ByPass -File scripts\install_windows.ps1
 - Bật ADB trong giả lập: **BlueStacks 5** → Settings → Advanced → **Android Debug Bridge**;
   **LDPlayer / MEmu / Nox** thường đã bật sẵn. Rồi bấm **Tìm máy ảo** — emu-sync tự
   `adb connect` các cổng phổ biến (5555/5557…, Nox 62001…, MEmu 21503…).
-- `adb` chưa có trong PATH cũng không sao — adbutils tự tải bản phù hợp.
+- **adb**: nếu máy chưa có adb trong PATH, `install_windows.bat` tự tải **platform-tools**
+  vào `tools\platform-tools\` (app tự dùng bản đó, không cần thêm PATH).
 
 **Build file `.exe`** (chạy trên Windows, PyInstaller không cross-compile):
 
-```powershell
-powershell -ExecutionPolicy ByPass -File scripts\build_windows.ps1
-# → dist\EmuSync\EmuSync.exe  (double-click để chạy)
-```
+- CMD: **double-click `scripts\build_windows.bat`**
+- PowerShell: `powershell -ExecutionPolicy ByPass -File scripts\build_windows.ps1`
+
+→ Kết quả: `dist\EmuSync\EmuSync.exe` (double-click để chạy).
 
 ## Dùng với giả lập có sẵn (không cần tạo AVD)
 
