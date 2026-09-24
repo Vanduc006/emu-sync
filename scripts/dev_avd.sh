@@ -41,15 +41,23 @@ create() {
 
 boot_wait() {
   for serial in emulator-5554 emulator-5556; do
-    "$ADB" -s "$serial" wait-for-device
+    local avd="emu1"
+    [[ "$serial" == *5556 ]] && avd="emu2"
+    local log="/tmp/${avd}.log"
     printf "chờ %s boot" "$serial"
     local waited=0
     until [[ "$("$ADB" -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; do
+      # fail nhanh nếu process emulator đã chết — nhưng bỏ qua 12s đầu (qemu cần thời gian spawn)
+      if (( waited >= 12 )) && ! pgrep -f "qemu-system.*-avd ${avd}( |$)" >/dev/null; then
+        echo " — EMULATOR ĐÃ THOÁT. 12 dòng cuối $log:"
+        tail -12 "$log"
+        return 1
+      fi
       printf "."
       sleep 2
       waited=$((waited + 2))
       if (( waited >= 300 )); then
-        echo " TIMEOUT — xem log: /tmp/${serial/emulator-/emu}.log"
+        echo " TIMEOUT — xem log: $log"
         return 1
       fi
     done
@@ -73,11 +81,15 @@ stop() {
   for serial in emulator-5554 emulator-5556; do
     "$ADB" -s "$serial" emu kill 2>/dev/null || true
   done
-  # đợi process thoát hẳn (tránh lần start sau bị lock file của AVD)
-  for _ in $(seq 1 25); do
+  # đợi process thoát HẲN (emulator có thể mất ~15s để lưu snapshot khi thoát;
+  # nếu start ngay sẽ bị lỗi "multiple emulators with the same AVD")
+  for _ in $(seq 1 60); do
     pgrep -f "qemu-system.*-avd emu" >/dev/null || break
     sleep 1
   done
+  if pgrep -f "qemu-system.*-avd emu" >/dev/null; then
+    echo "CẢNH BÁO: emulator vẫn chưa thoát hẳn — chờ thêm hoặc kill thủ công."
+  fi
 }
 
 case "${1:-}" in

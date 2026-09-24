@@ -89,6 +89,26 @@ powershell -ExecutionPolicy ByPass -File scripts\install_windows.ps1
 - **adb**: nếu máy chưa có adb trong PATH, `install_windows.bat` tự tải **platform-tools**
   vào `tools\platform-tools\` (app tự dùng bản đó, không cần thêm PATH).
 
+### Chạy máy ảo Android (AVD/QEMU) trên Windows
+
+Không bắt buộc — nếu bạn dùng BlueStacks/LDPlayer/MEmu thì bỏ qua mục này.
+
+**Cách A — Android Studio (dễ nhất):** cài Android Studio → *Device Manager* →
+*Create Device* → chọn system image → **Run** (cửa sổ máy ảo hiện ra để thao tác trực tiếp).
+
+**Cách B — CMD, không cần Android Studio, không cần PowerShell**
+(cần **Java 17+**: tải tại <https://adoptium.net>):
+
+```bat
+scripts\dev_avd_windows.bat create   :: tải emulator + system image (~2GB), tạo emu1/emu2
+scripts\dev_avd_windows.bat start    :: mở 2 máy ảo (mỗi máy 1 cửa sổ)
+scripts\dev_avd_windows.bat stop
+```
+
+- Script tự bật `hw.keyboard=yes` (điều kiện để gõ phím + sync bàn phím).
+- Nếu emulator báo thiếu tăng tốc: bật **Windows Hypervisor Platform** trong
+  *Turn Windows features on or off* rồi khởi động lại máy.
+
 **Build file `.exe`** (chạy trên Windows, PyInstaller không cross-compile):
 
 - CMD: **double-click `scripts\build_windows.bat`**

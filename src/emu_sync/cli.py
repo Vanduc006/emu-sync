@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import subprocess
 import sys
 import time
 
 from . import adb as adbmod
-from .capture.getevent import GeteventSource
+from .capture.getevent import GeteventSource, discover_devices
 from .hotkeys import DEFAULT_HOTKEY, HotkeyManager, keycode_of_spec, label_of
 from .scrcpy import const as C
 from .scrcpy import control
@@ -304,6 +305,101 @@ def cmd_app(args) -> int:
     return 0
 
 
+def cmd_doctor(args) -> int:
+    """Kiểm tra từng bước kết nối tới thiết bị (debug nhanh khi session lỗi)."""
+    ok = True
+
+    def step(name: str, fn):
+        nonlocal ok
+        try:
+            print(f"[OK]  {name}: {fn()}")
+        except Exception as e:
+            ok = False
+            print(f"[LỖI] {name}: {e}")
+        return ok
+
+    print("== 1) Môi trường ==")
+    step("adb binary", lambda: adbmod.adb_binary())
+
+    def adb_version() -> str:
+        out = subprocess.run(
+            [adbmod.adb_binary(), "version"], capture_output=True, text=True, timeout=15
+        ).stdout
+        return out.splitlines()[0] if out else "?"
+
+    step("adb version", adb_version)
+
+    devices = adbmod.list_devices()
+    if devices:
+        print(f"[OK]  adb devices: {', '.join(d.serial for d in devices)}")
+    else:
+        ok = False
+        print("[LỖI] adb devices: (trống) — mở giả lập + bật ADB rồi bấm 'Tìm máy ảo'")
+        return 1
+
+    serial = args.serial or (devices[0].serial if len(devices) == 1 else None)
+    if serial is None:
+        print("→ Có nhiều thiết bị, chạy lại với serial cụ thể: emu-sync doctor <serial>")
+        return 0
+    if serial not in {d.serial for d in devices}:
+        print(f"→ Không thấy {serial} trong adb devices")
+        return 1
+
+    print(f"\n== 2) Thiết bị {serial} ==")
+    device = adbmod.get_device(serial)
+
+    def shell_echo() -> str:
+        out = device.shell("echo ok").strip()
+        if "ok" not in out:
+            raise RuntimeError(f"phản hồi lạ: {out!r}")
+        return "shell phản hồi OK"
+
+    if not step("shell", shell_echo):
+        return 1
+
+    def size() -> str:
+        w, h = adbmod.display_size(device)
+        return f"{w}x{h}"
+
+    step("wm size", size)
+
+    def caps() -> str:
+        found = discover_devices(device)
+        touch = next((c for c in found if c.is_touch), None)
+        if touch is None:
+            raise RuntimeError("không thấy thiết bị cảm ứng (ABS_MT_POSITION_X/Y)")
+        keyboard = next((c for c in found if c.is_keyboard), None)
+        kb = f", bàn phím: {keyboard.path}" if keyboard else " (KHÔNG có bàn phím — AVD cần hw.keyboard=yes)"
+        return f"cảm ứng: {touch.path}{kb}"
+
+    step("getevent", caps)
+
+    def push() -> str:
+        jar = adbmod.push_server(device)
+        return f"đã push {jar.name} → {C.SERVER_DEVICE_PATH}"
+
+    if not step("push scrcpy-server", push):
+        return 1
+
+    print("\n== 3) Mở thử session control-only ==")
+    try:
+        session = ControlSession(device)
+        session.start()
+        print(f"[OK]  scrcpy-server kết nối ✓ (thiết bị: {session.device_name!r})")
+        session.stop()
+    except Exception as e:
+        print(f"[LỖI] {e}")
+        print(
+            "\n→ Gợi ý: 1) thử lại (máy ảo có thể đang bận lúc khởi động); "
+            "2) kiểm tra version jar khớp (scripts/fetch_scrcpy_server.sh); "
+            "3) thử giả lập khác/xem log server ở trên."
+        )
+        return 1
+
+    print("\nKẾT QUẢ: mọi bước OK ✅")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="emu-sync", description="Đồng bộ thao tác giữa nhiều giả lập Android (giai đoạn M1)"
@@ -346,6 +442,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("sniff", help="in event input parse được từ 1 thiết bị (debug)")
     p.add_argument("serial")
     p.set_defaults(func=cmd_sniff)
+
+    p = sub.add_parser("doctor", help="kiểm tra từng bước kết nối tới thiết bị (debug)")
+    p.add_argument("serial", nargs="?")
+    p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser("run", help="đồng bộ thao tác từ master sang các target")
     p.add_argument("--master", required=True, help="serial máy master (máy bạn thao tác)")
