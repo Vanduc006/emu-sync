@@ -46,6 +46,18 @@
   .adv-row input[type="number"], .adv-row input[type="text"] { background: #0e1114; border: 1px solid #2a313a; color: #e9ebee; border-radius: 6px; padding: 4px 6px; font-size: 12px; }
   .adv-row button { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
 
+  .avd { margin: 14px 18px 0; background: #171b20; border: 1px solid #262c34; border-radius: 10px; padding: 10px 14px; }
+  .avd > summary { cursor: pointer; font-weight: 600; }
+  .avd-list { display: flex; flex-direction: column; gap: 8px; padding: 10px 0 4px; }
+  .avd-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-top: 1px solid #222932; padding-top: 8px; }
+  .avd-name { font-weight: 600; min-width: 90px; }
+  .avd-buttons { display: flex; gap: 6px; margin-left: auto; }
+  .avd-buttons button { padding: 5px 10px; font-size: 12px; }
+  .avd-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 8px 0 4px; font-size: 13px; }
+  .avd-form input[type="text"], .avd-form input[type="number"], .avd-form select { background: #0e1114; border: 1px solid #2a313a; color: #e9ebee; border-radius: 6px; padding: 4px 6px; font-size: 13px; }
+  .avd-form input[type="number"] { width: 90px; }
+  .avd-form input[type="text"] { width: 120px; }
+
   .empty { margin: 40px auto; max-width: 560px; text-align: center; padding: 28px; background: #171b20; border: 1px dashed #2c343d; border-radius: 14px; }
   .empty h2 { margin: 0 0 8px; font-size: 18px; }
   .empty ol { text-align: left; margin: 12px auto; max-width: 420px; color: #b9c2cc; }
@@ -75,6 +87,38 @@
 </header>
 
 <div class="hint" id="hint" style="display:none"></div>
+
+<details class="avd" id="avd-panel">
+  <summary>💽 Máy ảo (AVD) — tạo / chạy / lưu state / cấu hình</summary>
+  <div class="sub" style="padding-top:6px">
+    Máy ảo <b>tự lưu state khi tắt</b> (quickboot) — mở lại đúng chỗ đang dùng, không phải máy mới.
+    Dùng <b>⟲ Chạy sạch</b> khi máy ảo bị lỗi/treo. Profile (RAM, cores, độ phân giải, bàn phím) lưu theo từng máy.
+  </div>
+  <div id="avd-list" class="avd-list sub">Đang tải…</div>
+  <details>
+    <summary class="sub">＋ Tạo máy ảo mới</summary>
+    <div class="avd-form">
+      <label>Tên <input type="text" id="avd-name" placeholder="vd: game1"></label>
+      <label>Image <select id="avd-image"></select></label>
+      <label>Kiểu máy
+        <select id="avd-device">
+          <option value="pixel_6" selected>Pixel 6 (1080×2400)</option>
+          <option value="pixel_5">Pixel 5</option>
+          <option value="pixel_4">Pixel 4</option>
+          <option value="Nexus 5">Nexus 5 (1080×1920)</option>
+        </select>
+      </label>
+      <label>RAM (MB) <input type="number" id="avd-ram" value="2048" min="512" step="512"></label>
+      <label>Cores <input type="number" id="avd-cores" value="2" min="1" max="8"></label>
+      <label>Rộng <input type="number" id="avd-w" placeholder="auto"></label>
+      <label>Cao <input type="number" id="avd-h" placeholder="auto"></label>
+      <label class="switch"><input type="checkbox" id="avd-kb" checked> Bàn phím</label>
+      <button onclick="avdCreate()">Tạo</button>
+      <span class="sub" id="avd-msg"></span>
+    </div>
+  </details>
+</details>
+
 <main id="grid"></main>
 
 <div class="drawer hidden" id="drawer">
@@ -383,10 +427,159 @@ $("preview-btn").onclick = () => {
   refreshState();
 };
 
+// ----- máy ảo (AVD) -----
+let avdListData = [];
+let avdImageData = [];
+
+async function refreshAvds() {
+  try {
+    const res = await api("/api/avd/list");
+    avdListData = res.avds || [];
+    avdImageData = res.images || [];
+    renderAvds();
+    const sel = $("avd-image");
+    if (sel && document.activeElement !== sel) {
+      const current = sel.value;
+      sel.innerHTML = avdImageData.length
+        ? avdImageData.map((i) => `<option value="${i}">${i.replace("system-images;", "")}</option>`).join("")
+        : `<option value="">(chưa có image — xem README)</option>`;
+      if (current) sel.value = current;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function renderAvds() {
+  const el = $("avd-list");
+  if (!el) return;
+  if (!avdListData.length) {
+    el.innerHTML =
+      `<span class="sub">Chưa có máy ảo AVD nào. Tạo bên dưới (cần emulator + system image — xem README).</span>`;
+    return;
+  }
+  el.innerHTML = avdListData
+    .map(
+      (a) => `
+    <div class="avd-row">
+      <span class="avd-name">${a.name}</span>
+      <span class="badge ${a.running ? "running" : ""}">${a.running ? "đang chạy · " + a.serial : "đã tắt"}</span>
+      <span class="badge ${a.snapshot ? "running" : ""}">state ${a.snapshot ? "✓ đã lưu" : "— chưa có"}</span>
+      <span class="sub">${a.width || "?"}×${a.height || "?"} · ${a.ram_mb || "?"}MB · ${a.cores || "?"} core · phím: ${a.keyboard ? "bật" : "tắt"}</span>
+      <span class="avd-buttons">
+        ${
+          a.running
+            ? `<button class="secondary" onclick="avdStop('${a.name}')">Tắt (tự lưu state)</button>
+               <button class="secondary" onclick="avdSaveState('${a.name}')">💾 Lưu state</button>`
+            : `<button onclick="avdStart('${a.name}')">▶ Chạy (giữ state)</button>
+               <button class="secondary" onclick="avdStartCold('${a.name}')">⟲ Chạy sạch</button>`
+        }
+        <button class="secondary" onclick="avdEdit('${a.name}')">✎ Cấu hình</button>
+        <button class="secondary" onclick="avdDelete('${a.name}')">🗑</button>
+      </span>
+    </div>`
+    )
+    .join("");
+}
+
+window.avdStart = async (name) => {
+  try {
+    await api("/api/avd/start", { name });
+    setTimeout(refreshAvds, 4000);
+  } catch (e) {
+    alert(e);
+  }
+};
+window.avdStartCold = async (name) => {
+  try {
+    await api("/api/avd/start", { name, cold: true });
+    setTimeout(refreshAvds, 4000);
+  } catch (e) {
+    alert(e);
+  }
+};
+window.avdStop = async (name) => {
+  try {
+    await api("/api/avd/stop", { name });
+    setTimeout(refreshAvds, 1500);
+    await refreshState();
+  } catch (e) {
+    alert(e);
+  }
+};
+window.avdSaveState = async (name) => {
+  try {
+    const res = await api("/api/avd/snapshot", { name });
+    alert("Đã lưu state:\n" + (res.output || "ok"));
+  } catch (e) {
+    alert(e);
+  }
+};
+window.avdDelete = async (name) => {
+  if (!confirm(`Xoá máy ảo "${name}"? Không thể hoàn tác.`)) return;
+  try {
+    await api("/api/avd/delete", { name });
+    await refreshAvds();
+  } catch (e) {
+    alert(e);
+  }
+};
+window.avdEdit = async (name) => {
+  const a = avdListData.find((x) => x.name === name) || {};
+  const ram = prompt(`RAM (MB) cho ${name}:`, a.ram_mb || 2048);
+  if (ram === null) return;
+  const cores = prompt("Số CPU cores:", a.cores || 2);
+  if (cores === null) return;
+  const size = prompt("Độ phân giải WxH (vd 720x1600 — để trống nếu giữ nguyên):", a.width ? `${a.width}x${a.height}` : "");
+  if (size === null) return;
+  const keyboard = confirm("Bật bàn phím cho máy ảo này? (OK = bật)");
+  const params = { name, ram_mb: +ram || null, cores: +cores || null, keyboard };
+  if (size.includes("x")) {
+    const [w, h] = size.split("x");
+    params.width = +w || null;
+    params.height = +h || null;
+  }
+  try {
+    await api("/api/avd/config", params);
+    await refreshAvds();
+    alert("Đã lưu cấu hình — có hiệu lực từ lần chạy sau.");
+  } catch (e) {
+    alert(e);
+  }
+};
+window.avdCreate = async () => {
+  const msg = $("avd-msg");
+  const payload = {
+    name: $("avd-name").value.trim(),
+    image: $("avd-image").value,
+    device: $("avd-device").value,
+    ram_mb: +$("avd-ram").value || null,
+    cores: +$("avd-cores").value || null,
+    width: +$("avd-w").value || null,
+    height: +$("avd-h").value || null,
+    keyboard: $("avd-kb").checked,
+  };
+  if (!payload.name || !payload.image) {
+    msg.textContent = "Cần nhập tên + có image";
+    return;
+  }
+  msg.textContent = "Đang tạo…";
+  try {
+    await api("/api/avd/create", payload);
+    msg.textContent = "Đã tạo ✓";
+    $("avd-name").value = "";
+    await refreshAvds();
+  } catch (e) {
+    msg.textContent = "Lỗi: " + e;
+  }
+};
+
 refreshState();
+refreshAvds();
 setInterval(refreshState, 1000);
 setInterval(refreshPreviews, 2000);
 setInterval(pollEvents, 800);
+setInterval(refreshAvds, 5000);
 </script>
 </body>
 </html>

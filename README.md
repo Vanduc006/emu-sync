@@ -137,6 +137,11 @@ scripts\dev_avd_windows.bat stop
 6. **Hiện màn hình**: bật xem trước từng máy (mặc định tắt cho nhẹ).
 7. **Nhật ký input** + mục **Nâng cao** trong từng máy: tap/scroll/key/back/gõ chữ, nghe thử
    input, kết nối ADB thủ công, thống kê — tương đương CLI.
+8. **Máy ảo (AVD)** — quản lý ngay trong app: **tạo máy ảo mới** (chọn image, RAM, cores,
+   độ phân giải, bàn phím), **Chạy / Tắt**, **💾 Lưu state**, **⟲ Chạy sạch** (khi máy lỗi),
+   **✎ Cấu hình** (profile lưu theo từng máy trong `config.ini`).
+   Máy ảo **tự lưu state khi tắt** (quickboot snapshot) — mở lại đúng chỗ đang dùng,
+   app/data đã cài vẫn còn nguyên, **không phải máy mới từ đầu**.
 
 ## Dùng nhanh (CLI — cho phần nâng cao)
 
@@ -187,8 +192,8 @@ uv run python scripts/e2e_keyboard_check.py --master emulator-5554 --text hello 
 | Sync touch / scroll (đúng vị trí) | ✅ verified E2E (tap → cùng activity; swipe → similarity 1.000) |
 | **Sync bàn phím** (kể cả Shift/Ctrl/Alt) | ✅ verified E2E (gõ `zebra42` → cả 2 máy; pause → không lây) |
 | App quản lý + phím tắt pause/resume + log input | ✅ verified |
+| Quản lý máy ảo trong app (tạo/chạy/tắt/lưu state/cấu hình profile) | ✅ verified |
 | Master tự động theo cửa sổ đang thao tác (M3) | ⏳ |
-| Quản lý máy ảo trong app (tạo/xoá/start AVD, profile) | ⏳ |
 | Viewer real-time (WebCodecs) — hiện có preview ảnh tuỳ chọn | ⏳ |
 | Test trên Windows với LDPlayer/BlueStacks | ⏳ |
 

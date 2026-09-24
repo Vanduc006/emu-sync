@@ -13,6 +13,7 @@ import time
 from collections import deque
 
 from . import adb as adbmod
+from . import avd as avdmod
 from . import config
 from .capture.getevent import GeteventSource
 from .scrcpy import const as C
@@ -212,6 +213,40 @@ class SyncController:
         with self._lock:
             self.set_paused(not self.paused)
             return self.paused
+
+    # ---------------- AVD (quản lý máy ảo) ----------------
+    def avds(self) -> list[dict]:
+        try:
+            return [info.to_dict() for info in avdmod.list_avds()]
+        except Exception as e:
+            self.last_error = f"AVD: {e}"
+            return []
+
+    def avd_images(self) -> list[str]:
+        try:
+            return avdmod.installed_images()
+        except Exception:
+            return []
+
+    def avd_create(self, **kwargs) -> dict:
+        info = avdmod.create_avd(**kwargs)
+        self.refresh_devices(update_meta=True)
+        return info.to_dict()
+
+    def avd_start(self, name: str, headless: bool = False, cold: bool = False) -> int:
+        return avdmod.start_avd(name, headless=headless, cold=cold)
+
+    def avd_stop(self, name: str) -> None:
+        avdmod.stop_avd(name)
+
+    def avd_delete(self, name: str) -> None:
+        avdmod.delete_avd(name)
+
+    def avd_save_state(self, name: str) -> str:
+        return avdmod.snapshot_save(name)
+
+    def avd_set_config(self, name: str, **fields) -> dict:
+        return avdmod.set_config(name, **fields).to_dict()
 
     # ---------------- connect / quét cổng ----------------
     def connect(self, address: str) -> str:
