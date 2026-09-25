@@ -248,6 +248,20 @@ class SyncController:
     def avd_set_config(self, name: str, **fields) -> dict:
         return avdmod.set_config(name, **fields).to_dict()
 
+    def avd_apply_screen(
+        self, name: str, width: int, height: int, dpi: int | None = None, persist: bool = True
+    ) -> dict:
+        result = avdmod.apply_screen(name, width, height, dpi=dpi, persist=persist)
+        # size mới → cập nhật lại cache kích thước để sync dùng đúng toạ độ
+        self._sizes.pop(avdmod.running_map().get(name, ""), None)
+        return result
+
+    def avd_reset_screen(self, name: str, reset_density: bool = True) -> dict:
+        result = avdmod.reset_screen(name, reset_density=reset_density)
+        # size về gốc → xoá cache để lần refresh sau đọc lại wm size
+        self._sizes.pop(avdmod.running_map().get(name, ""), None)
+        return result
+
     # ---------------- connect / quét cổng ----------------
     def connect(self, address: str) -> str:
         out = adbmod.connect(address)

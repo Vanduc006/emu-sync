@@ -98,6 +98,7 @@ def create_app(controller: SyncController) -> FastAPI:
                 cores=_int("cores"),
                 width=_int("width"),
                 height=_int("height"),
+                dpi=_int("dpi"),
                 keyboard=bool(payload.get("keyboard", True)),
             )
         except Exception as e:
@@ -170,11 +171,39 @@ def create_app(controller: SyncController) -> FastAPI:
                 cores=_int("cores"),
                 width=_int("width"),
                 height=_int("height"),
+                dpi=_int("dpi"),
                 keyboard=bool(keyboard) if keyboard is not None else None,
             )
         except Exception as e:
             raise HTTPException(502, f"sửa cấu hình lỗi: {e}")
         return {"avd": info}
+
+    @app.post("/api/avd/screen")
+    def avd_screen(payload: dict) -> dict:
+        name = payload.get("name")
+        if not name:
+            raise HTTPException(400, "thiếu name")
+        try:
+            width = int(payload.get("width") or 0)
+            height = int(payload.get("height") or 0)
+            dpi = int(payload["dpi"]) if payload.get("dpi") else None
+            result = controller.avd_apply_screen(
+                name, width, height, dpi=dpi, persist=bool(payload.get("persist", True))
+            )
+        except Exception as e:
+            raise HTTPException(502, f"đổi độ phân giải lỗi: {e}")
+        return {"result": result, **controller.state()}
+
+    @app.post("/api/avd/screen/reset")
+    def avd_screen_reset(payload: dict) -> dict:
+        name = payload.get("name")
+        if not name:
+            raise HTTPException(400, "thiếu name")
+        try:
+            result = controller.avd_reset_screen(name, reset_density=bool(payload.get("reset_density", True)))
+        except Exception as e:
+            raise HTTPException(502, f"reset màn hình lỗi: {e}")
+        return {"result": result, **controller.state()}
 
     @app.post("/api/connect")
     def connect(payload: dict) -> dict:

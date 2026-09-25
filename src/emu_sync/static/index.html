@@ -24,6 +24,17 @@
 
   main { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; padding: 16px 18px 40px; }
   main.grid-fixed { grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); }
+  main.grid-fixed .tile img, main.grid-fixed .prev-off { width: auto; max-width: 100%; max-height: var(--preview-max-h, 60vh); margin: 0 auto; }
+
+  .layout-pop { position: fixed; top: 58px; right: 16px; background: #12161a; border: 1px solid #2a313a; border-radius: 10px; padding: 10px 12px; z-index: 8; box-shadow: 0 12px 30px rgba(0,0,0,.5); display: none; }
+  .layout-pop.open { display: block; }
+  .grid-pick { display: grid; grid-template-columns: repeat(6, 26px); gap: 3px; margin-top: 8px; }
+  .grid-pick div { width: 26px; height: 20px; background: #232a33; border-radius: 3px; cursor: pointer; }
+  .grid-pick div.on { background: #2b6cb0; }
+  .avd-item { border-top: 1px solid #222932; padding-top: 8px; }
+  .avd-editor { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 0 2px; font-size: 12px; color: #b9c2cc; }
+  .avd-editor input[type="number"], .avd-editor select { background: #0e1114; border: 1px solid #2a313a; color: #e9ebee; border-radius: 6px; padding: 3px 6px; font-size: 12px; }
+  .avd-editor input[type="number"] { width: 78px; }
   .tile { background: #171b20; border: 1px solid #262c34; border-radius: 12px; overflow: hidden; }
   .tile.master { border-color: #e0a13a; box-shadow: 0 0 0 2px rgba(224,161,58,.25); }
   .tile img, .prev-off { width: 100%; display: block; background: #0c0f12; aspect-ratio: 9 / 19.5; object-fit: contain; }
@@ -84,18 +95,18 @@
   <button class="secondary" id="scan">Tìm máy ảo</button>
   <button class="secondary" id="preview-btn">Hiện màn hình</button>
   <button class="secondary" id="drawer-btn">Nhật ký input</button>
-  <label class="sub" style="display:flex;align-items:center;gap:6px">Hiển thị:
-    <select id="layout-select" style="background:#0e1114;border:1px solid #2a313a;color:#e9ebee;border-radius:6px;padding:4px 6px">
-      <option value="auto">Tự động</option>
-      <option value="1">1 máy / hàng</option>
-      <option value="2">2 máy / hàng</option>
-      <option value="3">3 máy / hàng</option>
-      <option value="4">4 máy / hàng</option>
-      <option value="5">5 máy / hàng</option>
-    </select>
-  </label>
+  <button class="secondary" id="layout-btn">▦ Bố cục</button>
   <span id="error"></span>
 </header>
+
+<div class="layout-pop" id="layout-pop">
+  <div class="row" style="display:flex;gap:8px;align-items:center">
+    <button class="secondary" onclick="setLayout('auto')">Tự động</button>
+    <span class="sub" id="layout-info"></span>
+  </div>
+  <div class="grid-pick" id="grid-pick"></div>
+  <div class="sub" style="margin-top:6px">Rê chuột để chọn số <b>cột × hàng</b>, bấm để áp dụng</div>
+</div>
 
 <div class="hint" id="hint" style="display:none"></div>
 
@@ -121,9 +132,11 @@
       </label>
       <label>RAM (MB) <input type="number" id="avd-ram" value="2048" min="512" step="512"></label>
       <label>Cores <input type="number" id="avd-cores" value="2" min="1" max="8"></label>
+      <label class="switch"><input type="checkbox" id="avd-kb" checked> Bàn phím</label>
+      <label>Tỉ lệ <select id="avd-preset" onchange="applyCreatePreset(this.value)"></select></label>
       <label>Rộng <input type="number" id="avd-w" placeholder="auto"></label>
       <label>Cao <input type="number" id="avd-h" placeholder="auto"></label>
-      <label class="switch"><input type="checkbox" id="avd-kb" checked> Bàn phím</label>
+      <label>DPI <input type="number" id="avd-dpi" placeholder="auto" style="width:70px"></label>
       <button onclick="avdCreate()">Tạo</button>
       <span class="sub" id="avd-msg"></span>
     </div>
@@ -202,7 +215,7 @@ function statusClass(d) {
 function signatureOf(s) {
   return JSON.stringify([
     s.running, s.paused, s.master,
-    s.devices.map((d) => [d.serial, d.name, d.is_master, d.sync_enabled, d.session_state, d.sniffing]),
+    s.devices.map((d) => [d.serial, d.name, d.is_master, d.sync_enabled, d.session_state, d.sniffing, d.width, d.height]),
   ]);
 }
 
@@ -210,9 +223,12 @@ function tileHtml(d, index) {
   const masterBadge = d.is_master ? '<span class="badge master">MÁY CHÍNH</span>' : "";
   const sniffLabel = d.sniffing ? "Dừng nghe" : "Nghe thử";
   const sessState = d.session_state === "running" ? "đã kết nối" : d.session_state === "error" ? "lỗi" : d.session_state;
+  const ar = d.width && d.height ? `${d.width}/${d.height}` : "9/19.5";
   return `
   <div class="tile ${d.is_master ? "master" : ""}" data-serial="${d.serial}">
-    ${previewOn ? `<img id="img-${d.serial}" alt="${d.serial}">` : `<div class="prev-off">Xem trước đang tắt</div>`}
+    ${previewOn
+      ? `<img id="img-${d.serial}" alt="${d.serial}" style="aspect-ratio:${ar}">`
+      : `<div class="prev-off" style="aspect-ratio:${ar}">Xem trước đang tắt</div>`}
     <div class="meta">
       <div class="name-row">
         <span class="machine">${machineLabel(index)}</span>
@@ -428,27 +444,68 @@ $("toggle-run").onclick = async () => {
 };
 $("scan").onclick = scanDevices;
 
-// ----- layout lưới (1/2/3/4/5 máy mỗi hàng) -----
-function applyLayout(value) {
+// ----- layout lưới: tự động hoặc vẽ grid (cột × hàng), đồng bộ tỉ lệ máy ảo -----
+let layout = { mode: "auto" };
+try {
+  layout = JSON.parse(localStorage.getItem("emu-sync-layout2") || "null") || layout;
+} catch (e) {
+  /* ignore */
+}
+
+function applyLayout() {
   const grid = $("grid");
   if (!grid) return;
-  if (value === "auto") {
+  if (layout.mode === "auto") {
     grid.classList.remove("grid-fixed");
     grid.style.removeProperty("--cols");
+    grid.style.removeProperty("--preview-max-h");
   } else {
     grid.classList.add("grid-fixed");
-    grid.style.setProperty("--cols", value);
+    grid.style.setProperty("--cols", layout.cols);
+    grid.style.setProperty("--preview-max-h", `calc((100vh - 330px) / ${layout.rows})`);
+  }
+  $("layout-info").textContent = layout.mode === "auto" ? "Đang: tự động" : `Đang: ${layout.cols} × ${layout.rows}`;
+}
+
+window.setLayout = (mode, cols, rows) => {
+  layout = mode === "auto" ? { mode: "auto" } : { mode: "grid", cols, rows };
+  localStorage.setItem("emu-sync-layout2", JSON.stringify(layout));
+  applyLayout();
+  renderGridPick();
+  $("layout-pop").classList.remove("open");
+};
+
+const PICK_COLS = 6;
+const PICK_ROWS = 4;
+
+function renderGridPick() {
+  const el = $("grid-pick");
+  el.innerHTML = "";
+  for (let r = 1; r <= PICK_ROWS; r++) {
+    for (let c = 1; c <= PICK_COLS; c++) {
+      const cell = document.createElement("div");
+      cell.dataset.c = c;
+      cell.dataset.r = r;
+      if (layout.mode === "grid" && c <= layout.cols && r <= layout.rows) cell.classList.add("on");
+      cell.onmouseenter = () => highlightPick(c, r);
+      cell.onclick = () => setLayout("grid", c, r);
+      el.appendChild(cell);
+    }
   }
 }
-$("layout-select").onchange = (event) => {
-  localStorage.setItem("emu-sync-layout", event.target.value);
-  applyLayout(event.target.value);
-};
-{
-  const saved = localStorage.getItem("emu-sync-layout") || "auto";
-  $("layout-select").value = saved;
-  applyLayout(saved);
+
+function highlightPick(cols, rows) {
+  $("grid-pick")
+    .querySelectorAll("div")
+    .forEach((cell) => cell.classList.toggle("on", +cell.dataset.c <= cols && +cell.dataset.r <= rows));
+  $("layout-info").textContent = `${cols} × ${rows}`;
 }
+
+$("layout-btn").onclick = () => {
+  $("layout-pop").classList.toggle("open");
+  renderGridPick();
+  applyLayout();
+};
 $("pause-btn").onclick = async () => {
   try { await api("/api/pause", { enabled: !(state && state.paused) }); await refreshState(); } catch (e) { alert(e); }
 };
@@ -463,6 +520,145 @@ $("preview-btn").onclick = () => {
 // ----- máy ảo (AVD) -----
 let avdListData = [];
 let avdImageData = [];
+let avdEditor = null; // {name, preset, w, h, dpi, persist}
+
+const SCREEN_PRESETS = [
+  { label: "9:16 · 720×1280 (HD)", w: 720, h: 1280, dpi: 320 },
+  { label: "9:16 · 1080×1920 (FHD)", w: 1080, h: 1920, dpi: 480 },
+  { label: "9:19.5 · 1080×2340", w: 1080, h: 2340, dpi: 440 },
+  { label: "9:20 · 1080×2400 (mặc định)", w: 1080, h: 2400, dpi: 420 },
+  { label: "9:21 · 1080×2520 (siêu dài)", w: 1080, h: 2520, dpi: 440 },
+  { label: "16:9 ngang · 1920×1080", w: 1920, h: 1080, dpi: 320 },
+  { label: "16:10 ngang · 1920×1200", w: 1920, h: 1200, dpi: 320 },
+  { label: "3:2 ngang · 1920×1280", w: 1920, h: 1280, dpi: 280 },
+  { label: "4:3 ngang · 1600×1200", w: 1600, h: 1200, dpi: 240 },
+  { label: "4:3 dọc · 1200×1600", w: 1200, h: 1600, dpi: 240 },
+  { label: "1:1 vuông · 1080×1080", w: 1080, h: 1080, dpi: 320 },
+  { label: "21:9 ngang · 2520×1080", w: 2520, h: 1080, dpi: 320 },
+];
+
+window.applyCreatePreset = (index) => {
+  if (index === "") return;
+  const p = SCREEN_PRESETS[+index];
+  if (!p) return;
+  $("avd-w").value = p.w;
+  $("avd-h").value = p.h;
+  $("avd-dpi").value = p.dpi;
+};
+
+function dpSize(w, h, dpi) {
+  if (!w || !h || !dpi) return "";
+  return `${Math.round((w * 160) / dpi)}×${Math.round((h * 160) / dpi)}dp`;
+}
+
+function screenLabel(a) {
+  const dp = dpSize(a.width, a.height, a.dpi);
+  return `${a.width || "?"}×${a.height || "?"}${a.dpi ? " @" + a.dpi : ""}${dp ? " (" + dp + ")" : ""}`;
+}
+
+window.avdScreen = (name) => {
+  const a = avdListData.find((x) => x.name === name) || {};
+  if (avdEditor && avdEditor.name === name) {
+    avdEditor = null;
+  } else {
+    avdEditor = {
+      name,
+      preset: 3,
+      w: a.width || 1080,
+      h: a.height || 2400,
+      dpi: a.dpi || 0,
+      persist: true,
+      ref: "",
+    };
+  }
+  renderAvds();
+};
+
+function editorHtml(a) {
+  const e = avdEditor;
+  const options = SCREEN_PRESETS.map(
+    (p, i) => `<option value="${i}" ${e.preset === i ? "selected" : ""}>${p.label}</option>`
+  ).join("");
+  const refs = avdListData.filter((x) => x.running && x.width);
+  const refOptions = refs
+    .map(
+      (x) =>
+        `<option value="${x.name}" ${e.ref === x.name ? "selected" : ""}>${x.name} (${x.width}×${x.height}${
+          x.dpi ? " @" + x.dpi : ""
+        })</option>`
+    )
+    .join("");
+  return `
+  <div class="avd-editor">
+    <span>🖥 Màn hình <b>${a.name}</b>:</span>
+    <select onchange="editorPreset(this.value)">${options}</select>
+    <label>Rộng <input type="number" value="${e.w || ""}" oninput="avdEditor.w=+this.value"></label>
+    <label>Cao <input type="number" value="${e.h || ""}" oninput="avdEditor.h=+this.value"></label>
+    <label>DPI <input type="number" value="${e.dpi || ""}" oninput="avdEditor.dpi=+this.value"></label>
+    <label class="switch"><input type="checkbox" ${e.persist ? "checked" : ""} onchange="avdEditor.persist=this.checked"> Lưu profile</label>
+    <button onclick="avdApplyScreen()">Áp dụng</button>
+    <button class="secondary" onclick="avdResetScreen()">Về gốc</button>
+    <button class="secondary" onclick="avdScreen('${a.name}')">Đóng</button>
+    <span class="sub">${a.running ? "đang chạy → áp dụng ngay" : "máy tắt → áp dụng ở lần chạy sau"}</span>
+  </div>
+  <div class="avd-editor">
+    <span>Khớp tỉ lệ với:</span>
+    <select onchange="avdEditor.ref=this.value">${`<option value="">— chọn máy đang chạy —</option>` + refOptions}</select>
+    <button class="secondary" onclick="editorScale(1)">1×</button>
+    <button class="secondary" onclick="editorScale(0.75)">0.75×</button>
+    <button class="secondary" onclick="editorScale(0.5)">0.5×</button>
+    <span class="sub">${dpSize(e.w, e.h, e.dpi) ? "≈ " + dpSize(e.w, e.h, e.dpi) : ""}</span>
+    <span class="sub">(cùng dp = bố cục giống nhau, chỉ khác độ nét)</span>
+  </div>`;
+}
+
+window.editorScale = (factor) => {
+  if (!avdEditor) return;
+  const ref = avdListData.find((x) => x.name === avdEditor.ref);
+  if (!ref || !ref.width || !ref.height) {
+    alert("Chọn 1 máy đang chạy ở ô 'Khớp tỉ lệ với' trước nhé.");
+    return;
+  }
+  avdEditor.w = Math.round(ref.width * factor);
+  avdEditor.h = Math.round(ref.height * factor);
+  if (ref.dpi) avdEditor.dpi = Math.round(ref.dpi * factor);
+  renderAvds();
+};
+
+window.editorPreset = (index) => {
+  const p = SCREEN_PRESETS[+index];
+  if (!p || !avdEditor) return;
+  avdEditor.preset = +index;
+  avdEditor.w = p.w;
+  avdEditor.h = p.h;
+  avdEditor.dpi = p.dpi;
+  renderAvds();
+};
+
+window.avdApplyScreen = async () => {
+  const e = avdEditor;
+  if (!e || !e.w || !e.h) return;
+  try {
+    await api("/api/avd/screen", { name: e.name, width: e.w, height: e.h, dpi: e.dpi || null, persist: e.persist });
+    await refreshAvds();
+    await refreshState();
+    alert(`Đã đổi màn hình ${e.name} → ${e.w}×${e.h}${e.dpi ? " @" + e.dpi + "dpi" : ""}`);
+  } catch (err) {
+    alert(err);
+  }
+};
+
+window.avdResetScreen = async () => {
+  const e = avdEditor;
+  if (!e) return;
+  try {
+    await api("/api/avd/screen/reset", { name: e.name });
+    await refreshState();
+    alert(`Đã trả màn hình ${e.name} về mặc định của máy ảo.`);
+  } catch (err) {
+    alert(err);
+  }
+};
 
 async function refreshAvds() {
   try {
@@ -477,6 +673,12 @@ async function refreshAvds() {
         ? avdImageData.map((i) => `<option value="${i}">${i.replace("system-images;", "")}</option>`).join("")
         : `<option value="">(chưa có image — xem README)</option>`;
       if (current) sel.value = current;
+    }
+    const presetSel = $("avd-preset");
+    if (presetSel && !presetSel.options.length) {
+      presetSel.innerHTML =
+        `<option value="">(tỉ lệ mặc định)</option>` +
+        SCREEN_PRESETS.map((p, i) => `<option value="${i}">${p.label}</option>`).join("");
     }
   } catch (e) {
     /* ignore */
@@ -494,11 +696,12 @@ function renderAvds() {
   el.innerHTML = avdListData
     .map(
       (a) => `
+    <div class="avd-item">
     <div class="avd-row">
       <span class="avd-name">${a.name}</span>
       <span class="badge ${a.running ? "running" : ""}">${a.running ? "đang chạy · " + a.serial : "đã tắt"}</span>
       <span class="badge ${a.snapshot ? "running" : ""}">state ${a.snapshot ? "✓ đã lưu" : "— chưa có"}</span>
-      <span class="sub">${a.width || "?"}×${a.height || "?"} · ${a.ram_mb || "?"}MB · ${a.cores || "?"} core · phím: ${a.keyboard ? "bật" : "tắt"}</span>
+      <span class="sub">${screenLabel(a)} · ${a.ram_mb || "?"}MB · ${a.cores || "?"} core · phím: ${a.keyboard ? "bật" : "tắt"}</span>
       <span class="avd-buttons">
         ${
           a.running
@@ -507,9 +710,12 @@ function renderAvds() {
             : `<button onclick="avdStart('${a.name}')">▶ Chạy (giữ state)</button>
                <button class="secondary" onclick="avdStartCold('${a.name}')">⟲ Chạy sạch</button>`
         }
+        <button class="secondary" onclick="avdScreen('${a.name}')">🖥 Màn hình</button>
         <button class="secondary" onclick="avdEdit('${a.name}')">✎ Cấu hình</button>
         <button class="secondary" onclick="avdDelete('${a.name}')">🗑</button>
       </span>
+    </div>
+    ${avdEditor && avdEditor.name === a.name ? editorHtml(a) : ""}
     </div>`
     )
     .join("");
@@ -590,6 +796,7 @@ window.avdCreate = async () => {
     cores: +$("avd-cores").value || null,
     width: +$("avd-w").value || null,
     height: +$("avd-h").value || null,
+    dpi: +$("avd-dpi").value || null,
     keyboard: $("avd-kb").checked,
   };
   if (!payload.name || !payload.image) {
@@ -609,6 +816,8 @@ window.avdCreate = async () => {
 
 refreshState();
 refreshAvds();
+applyLayout();
+renderGridPick();
 setInterval(refreshState, 1000);
 setInterval(refreshPreviews, 2000);
 setInterval(pollEvents, 800);

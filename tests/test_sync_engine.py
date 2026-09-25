@@ -34,6 +34,52 @@ def test_touch_serialize_unchanged():
     assert buf == control.inject_touch(C.ACTION_DOWN, 540, 600, 1080, 2400, pointer_id=0)
 
 
+def test_touch_maps_to_each_target_size():
+    """Máy nhận bị resize (tỉ lệ khác) → toạ độ vẫn được nhân theo kích thước riêng."""
+    engine = SyncEngine({})
+    event = TouchEvent(action="down", slot=0, nx=0.25, ny=0.5)
+
+    assert engine.serialize(event, 1080, 2400) == control.inject_touch(
+        C.ACTION_DOWN, 270, 1200, 1080, 2400, pointer_id=0
+    )
+    assert engine.serialize(event, 720, 1600) == control.inject_touch(
+        C.ACTION_DOWN, 180, 800, 720, 1600, pointer_id=0
+    )
+    assert engine.serialize(event, 1920, 1080) == control.inject_touch(
+        C.ACTION_DOWN, 480, 540, 1920, 1080, pointer_id=0
+    )
+
+
+def test_touch_clamped_at_edges_of_smaller_screen():
+    engine = SyncEngine({})
+    buf = engine.serialize(TouchEvent(action="up", slot=0, nx=1.0, ny=1.0), 720, 1600)
+    assert buf == control.inject_touch(C.ACTION_UP, 719, 1599, 720, 1600, pointer_id=0)
+
+
+class _FakeSession:
+    def __init__(self) -> None:
+        self.sent: list[bytes] = []
+
+    def send(self, message: bytes) -> None:
+        self.sent.append(message)
+
+
+def test_fanout_sends_scaled_coordinates_to_each_machine():
+    """1 event → nhiều máy, mỗi máy nhận toạ độ theo size của chính nó (1080×2400 vs 720×1600)."""
+    big, small = _FakeSession(), _FakeSession()
+    engine = SyncEngine(
+        {
+            "emulator-5554": (big, (1080, 2400)),
+            "emulator-5556": (small, (720, 1600)),
+        }
+    )
+    engine.handle(TouchEvent(action="down", slot=0, nx=0.5, ny=0.5))
+
+    assert big.sent == [control.inject_touch(C.ACTION_DOWN, 540, 1200, 1080, 2400, pointer_id=0)]
+    assert small.sent == [control.inject_touch(C.ACTION_DOWN, 360, 800, 720, 1600, pointer_id=0)]
+    assert engine.event_count == 1
+
+
 def test_keymap_samples():
     assert linux_to_android(30) == 29  # KEY_A → AKEYCODE_A
     assert linux_to_android(31) == 47  # KEY_S → AKEYCODE_S (khác thứ tự alphabet)

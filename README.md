@@ -135,7 +135,9 @@ scripts\dev_avd_windows.bat stop
    tác cửa sổ giả lập) — dùng khi cần thao tác riêng từng máy. Đổi phím:
    `uv run emu-sync app --hotkey "<ctrl>+<shift>+s"`; tắt bằng `--hotkey none`.
 6. **Hiện màn hình**: bật xem trước từng máy (mặc định tắt cho nhẹ).
-   **Hiển thị**: chọn **1/2/3/4/5 máy mỗi hàng** (kiểu grid, lưu theo máy bạn dùng).
+   **▦ Bố cục**: chọn nhanh 1–5 máy/hàng, hoặc **vẽ lưới** tuỳ ý (rê chuột chọn *cột × hàng*,
+   tối đa 6×4) — lưu theo máy bạn dùng. Ô xem trước **tự theo tỉ lệ màn hình thật** của từng
+   máy ảo (resize máy ảo xong là lưới khớp lại ngay).
 7. **Nhật ký input** + mục **Nâng cao** trong từng máy: tap/scroll/key/back/gõ chữ, nghe thử
    input, kết nối ADB thủ công, thống kê — tương đương CLI.
 8. **Máy ảo (AVD)** — quản lý ngay trong app: **tạo máy ảo mới** (chọn image, RAM, cores,
@@ -143,6 +145,11 @@ scripts\dev_avd_windows.bat stop
    **✎ Cấu hình** (profile lưu theo từng máy trong `config.ini`).
    Máy ảo **tự lưu state khi tắt** (quickboot snapshot) — mở lại đúng chỗ đang dùng,
    app/data đã cài vẫn còn nguyên, **không phải máy mới từ đầu**.
+9. **🖥 Màn hình (đa dạng tỉ lệ)** — đổi độ phân giải/tỉ lệ từng máy ảo ngay trong app:
+   12 preset (9:16, 9:19.5, 9:20, 9:21, 16:9, 16:10, 3:2, 4:3 dọc/ngang, 1:1, 21:9…)
+   hoặc nhập tay Rộng×Cao + DPI. Máy đang chạy → **áp dụng ngay không cần khởi động lại**
+   (đồng bộ tự nhân toạ độ theo size mới); bật **Lưu profile** để giữ luôn lần sau.
+   Nút **khớp tỉ lệ theo máy khác** (1× / 0.75× / 0.5×) giúp giữ **cùng dp** giữa các máy.
 
 ## Dùng nhanh (CLI — cho phần nâng cao)
 
@@ -158,9 +165,11 @@ uv run emu-sync ui                         # panel web (không cửa sổ native
 ## Kiểm tra / tự test
 
 ```bash
-uv run pytest -q                                        # 28 unit test (protocol, parser, engine)
+uv run pytest -q                                        # unit test (protocol, parser, engine, AVD)
 uv run python scripts/e2e_sync_check.py --master emulator-5554 --action swipe   # touch sync
 uv run python scripts/e2e_keyboard_check.py --master emulator-5554 --text hello # bàn phím sync
+# UI smoke test (cần Chrome; xem hướng dẫn ở đầu scripts/ui_smoke.py)
+uv run python scripts/ui_smoke.py                       # bố cục lưới + editor màn hình
 ```
 
 ## Xử lý sự cố
@@ -212,6 +221,9 @@ uv run python scripts/e2e_keyboard_check.py --master emulator-5554 --text hello 
   dùng một loại giả lập, thử built-in trước. emu-sync dành cho: trộn nhiều loại giả lập, luật
   master/toggle riêng, và tương lai viewer từ xa.
 - Nên đặt **cùng resolution + orientation** cho các máy để "đúng vị trí" là tuyệt đối.
+  Quan trọng không kém: **cùng DPI** — cùng `resolution + DPI` ⇒ cùng kích thước **dp** ⇒
+  bố cục UI giống nhau nên chạm vào đúng cùng một phần tử. Muốn máy nhẹ hơn thì giảm
+  resolution **và** DPI cùng tỉ lệ (dùng nút *khớp tỉ lệ 0.75× / 0.5×* trong app).
 - App/game **phát hiện giả lập** và chặn? Xem hướng dẫn né detect (đổi props, root/Play
   Integrity, kernel/QEMU args): [`bypass.md`](./bypass.md).
 

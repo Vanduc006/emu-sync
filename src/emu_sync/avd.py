@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -113,6 +114,7 @@ class AvdInfo:
     image: str = ""
     width: int = 0
     height: int = 0
+    dpi: int = 0
     ram_mb: int = 0
     cores: int = 0
     keyboard: bool = False
@@ -126,6 +128,7 @@ class AvdInfo:
             "image": self.image,
             "width": self.width,
             "height": self.height,
+            "dpi": self.dpi or None,
             "ram_mb": self.ram_mb,
             "cores": self.cores,
             "keyboard": self.keyboard,
@@ -198,6 +201,7 @@ def list_avds() -> list[AvdInfo]:
             image=cfg.get("image.sysdir.1", ""),
             width=_int("hw.lcd.width"),
             height=_int("hw.lcd.height"),
+            dpi=_int("hw.lcd.density"),
             ram_mb=_int("hw.ramSize"),
             cores=_int("hw.cpu.ncore"),
             keyboard=cfg.get("hw.keyboard", "no").lower() == "yes",
@@ -242,6 +246,7 @@ def create_avd(
     cores: int | None = None,
     width: int | None = None,
     height: int | None = None,
+    dpi: int | None = None,
     keyboard: bool = True,
 ) -> AvdInfo:
     avdm = avdmanager_binary()
@@ -271,6 +276,8 @@ def create_avd(
         updates["hw.lcd.width"] = str(width)
     if height:
         updates["hw.lcd.height"] = str(height)
+    if dpi:
+        updates["hw.lcd.density"] = str(dpi)
     write_config(avd_dir() / f"{name}.avd" / "config.ini", updates)
 
     for info in list_avds():
@@ -358,6 +365,7 @@ def set_config(
     cores: int | None = None,
     width: int | None = None,
     height: int | None = None,
+    dpi: int | None = None,
     keyboard: bool | None = None,
 ) -> AvdInfo:
     updates: dict[str, str] = {}
@@ -369,6 +377,8 @@ def set_config(
         updates["hw.lcd.width"] = str(width)
     if height:
         updates["hw.lcd.height"] = str(height)
+    if dpi:
+        updates["hw.lcd.density"] = str(dpi)
     if keyboard is not None:
         updates["hw.keyboard"] = "yes" if keyboard else "no"
     if not updates:
@@ -378,3 +388,98 @@ def set_config(
         if info.name == name:
             return info
     raise RuntimeError(f"Không thấy AVD {name}")
+
+
+def apply_screen(
+    name: str,
+    width: int,
+    height: int,
+    dpi: int | None = None,
+    persist: bool = True,
+) -> dict:
+    """Đổi độ phân giải màn hình máy ảo (đa dạng tỉ lệ).
+
+    - Đang chạy → áp dụng **ngay** bằng `wm size` / `wm density` (không cần khởi động lại).
+      Toạ độ sync đọc lại `wm size` nên tự khớp tỉ lệ mới.
+    - `persist=True` → lưu vào profile (config.ini) để lần chạy sau đúng luôn.
+    """
+    if width <= 0 or height <= 0:
+        raise RuntimeError("Kích thước không hợp lệ")
+
+    applied = False
+    serial = running_map().get(name)
+    if serial is not None:
+        subprocess.run(
+            [adbmod.adb_binary(), "-s", serial, "shell", "wm", "size", f"{width}x{height}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            **adbmod.no_window_kwargs(),
+        )
+        if dpi:
+            subprocess.run(
+                [adbmod.adb_binary(), "-s", serial, "shell", "wm", "density", str(dpi)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                **adbmod.no_window_kwargs(),
+            )
+        applied = True
+
+    if persist:
+        set_config(name, width=width, height=height, dpi=dpi)
+
+    return {"name": name, "width": width, "height": height, "dpi": dpi, "applied_runtime": applied}
+
+
+def reset_screen(name: str, reset_density: bool = True, persist: bool = True) -> dict:
+    """Trả màn hình máy ảo về độ phân giải GỐC (xoá override wm size/density).
+
+    Đồng thời (nếu persist) ghi lại kích thước gốc vào profile để lần chạy sau khớp.
+    """
+    serial = running_map().get(name)
+    if serial is None:
+        raise RuntimeError(f"{name} không chạy — bật máy ảo trước")
+    subprocess.run(
+        [adbmod.adb_binary(), "-s", serial, "shell", "wm", "size", "reset"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        **adbmod.no_window_kwargs(),
+    )
+    if reset_density:
+        subprocess.run(
+            [adbmod.adb_binary(), "-s", serial, "shell", "wm", "density", "reset"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            **adbmod.no_window_kwargs(),
+        )
+
+    physical_w = physical_h = physical_dpi = None
+    out = subprocess.run(
+        [adbmod.adb_binary(), "-s", serial, "shell", "wm", "size"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        **adbmod.no_window_kwargs(),
+    ).stdout
+    m = re.search(r"Physical size:\s*(\d+)x(\d+)", out or "")
+    if m:
+        physical_w, physical_h = int(m.group(1)), int(m.group(2))
+    if reset_density:
+        out = subprocess.run(
+            [adbmod.adb_binary(), "-s", serial, "shell", "wm", "density"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            **adbmod.no_window_kwargs(),
+        ).stdout
+        m = re.search(r"Physical density:\s*(\d+)", out or "")
+        if m:
+            physical_dpi = int(m.group(1))
+
+    if persist and physical_w and physical_h:
+        set_config(name, width=physical_w, height=physical_h, dpi=physical_dpi)
+
+    return {"name": name, "reset": True, "width": physical_w, "height": physical_h, "dpi": physical_dpi}
