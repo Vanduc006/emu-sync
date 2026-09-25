@@ -135,6 +135,7 @@ scripts\dev_avd_windows.bat stop
    tác cửa sổ giả lập) — dùng khi cần thao tác riêng từng máy. Đổi phím:
    `uv run emu-sync app --hotkey "<ctrl>+<shift>+s"`; tắt bằng `--hotkey none`.
 6. **Hiện màn hình**: bật xem trước từng máy (mặc định tắt cho nhẹ).
+   **Hiển thị**: chọn **1/2/3/4/5 máy mỗi hàng** (kiểu grid, lưu theo máy bạn dùng).
 7. **Nhật ký input** + mục **Nâng cao** trong từng máy: tap/scroll/key/back/gõ chữ, nghe thử
    input, kết nối ADB thủ công, thống kê — tương đương CLI.
 8. **Máy ảo (AVD)** — quản lý ngay trong app: **tạo máy ảo mới** (chọn image, RAM, cores,
@@ -211,6 +212,8 @@ uv run python scripts/e2e_keyboard_check.py --master emulator-5554 --text hello 
   dùng một loại giả lập, thử built-in trước. emu-sync dành cho: trộn nhiều loại giả lập, luật
   master/toggle riêng, và tương lai viewer từ xa.
 - Nên đặt **cùng resolution + orientation** cho các máy để "đúng vị trí" là tuyệt đối.
+- App/game **phát hiện giả lập** và chặn? Xem hướng dẫn né detect (đổi props, root/Play
+  Integrity, kernel/QEMU args): [`bypass.md`](./bypass.md).
 
 ## Ghi công
 

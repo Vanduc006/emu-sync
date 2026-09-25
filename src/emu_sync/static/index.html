@@ -23,6 +23,7 @@
   .hint b { color: #ffd47e; }
 
   main { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; padding: 16px 18px 40px; }
+  main.grid-fixed { grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); }
   .tile { background: #171b20; border: 1px solid #262c34; border-radius: 12px; overflow: hidden; }
   .tile.master { border-color: #e0a13a; box-shadow: 0 0 0 2px rgba(224,161,58,.25); }
   .tile img, .prev-off { width: 100%; display: block; background: #0c0f12; aspect-ratio: 9 / 19.5; object-fit: contain; }
@@ -83,6 +84,16 @@
   <button class="secondary" id="scan">Tìm máy ảo</button>
   <button class="secondary" id="preview-btn">Hiện màn hình</button>
   <button class="secondary" id="drawer-btn">Nhật ký input</button>
+  <label class="sub" style="display:flex;align-items:center;gap:6px">Hiển thị:
+    <select id="layout-select" style="background:#0e1114;border:1px solid #2a313a;color:#e9ebee;border-radius:6px;padding:4px 6px">
+      <option value="auto">Tự động</option>
+      <option value="1">1 máy / hàng</option>
+      <option value="2">2 máy / hàng</option>
+      <option value="3">3 máy / hàng</option>
+      <option value="4">4 máy / hàng</option>
+      <option value="5">5 máy / hàng</option>
+    </select>
+  </label>
   <span id="error"></span>
 </header>
 
@@ -416,6 +427,28 @@ $("toggle-run").onclick = async () => {
   try { await api("/api/run", { enabled: !(state && state.running) }); await refreshState(); } catch (e) { alert(e); }
 };
 $("scan").onclick = scanDevices;
+
+// ----- layout lưới (1/2/3/4/5 máy mỗi hàng) -----
+function applyLayout(value) {
+  const grid = $("grid");
+  if (!grid) return;
+  if (value === "auto") {
+    grid.classList.remove("grid-fixed");
+    grid.style.removeProperty("--cols");
+  } else {
+    grid.classList.add("grid-fixed");
+    grid.style.setProperty("--cols", value);
+  }
+}
+$("layout-select").onchange = (event) => {
+  localStorage.setItem("emu-sync-layout", event.target.value);
+  applyLayout(event.target.value);
+};
+{
+  const saved = localStorage.getItem("emu-sync-layout") || "auto";
+  $("layout-select").value = saved;
+  applyLayout(saved);
+}
 $("pause-btn").onclick = async () => {
   try { await api("/api/pause", { enabled: !(state && state.paused) }); await refreshState(); } catch (e) { alert(e); }
 };
