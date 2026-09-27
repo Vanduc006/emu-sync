@@ -41,7 +41,7 @@ exit /b 0
 :download_tools
 echo [0/4] Tai Android command-line tools 23.0 ...
 if not exist "%SDK%" mkdir "%SDK%"
-curl -L --retry 2 -o "%TEMP%\cmdline-tools.zip" "%CLT_URL%"
+curl --fail --show-error -L --retry 2 -o "%TEMP%\cmdline-tools.zip" "%CLT_URL%"
 if errorlevel 1 (
   echo [LOI] Tai cmdline-tools that bai. Kiem tra mang roi chay lai.
   exit /b 1
@@ -51,12 +51,12 @@ if exist "%SDK%\cmdline-tools\_new" rmdir /s /q "%SDK%\cmdline-tools\_new"
 mkdir "%SDK%\cmdline-tools\_new"
 tar -xf "%TEMP%\cmdline-tools.zip" -C "%SDK%\cmdline-tools\_new"
 if not exist "%SDK%\cmdline-tools\_new\cmdline-tools\bin" (
-  echo [LOI] Giai nen cmdline-tools that bai (kiem tra dung luong dia).
+  echo [LOI] Giai nen cmdline-tools that bai ^(kiem tra dung luong dia^).
   exit /b 1
 )
 if exist "%CLT%" rmdir /s /q "%CLT%"
 if exist "%CLT%" (
-  echo [LOI] Khong xoa duoc ban cmdline-tools cu (co the dang mo trong Explorer/CMD).
+  echo [LOI] Khong xoa duoc ban cmdline-tools cu ^(co the dang mo trong Explorer/CMD^).
   echo       Dong cua so dang mo trong "%CLT%" roi chay lai.
   exit /b 1
 )
