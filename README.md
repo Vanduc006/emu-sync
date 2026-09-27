@@ -32,6 +32,9 @@ cửa sổ master (bạn click/kéo/scroll/gõ phím)
 brew install --cask android-platform-tools android-commandlinetools
 brew install uv            # hoặc: curl -LsSf https://astral.sh/uv/install.sh | sh
 
+# 1b) JDK 17+ — chỉ cần nếu bạn muốn tạo máy ảo AVD (sdkmanager/avdmanager chạy bằng Java)
+brew install --cask temurin   # kiểm tra: java -version  (JDK 21 cũng OK)
+
 # 2) Vào thư mục dự án (repo này)
 cd ~/Workspace/docs/emu-sync
 
@@ -97,7 +100,21 @@ Không bắt buộc — nếu bạn dùng BlueStacks/LDPlayer/MEmu thì bỏ qua
 *Create Device* → chọn system image → **Run** (cửa sổ máy ảo hiện ra để thao tác trực tiếp).
 
 **Cách B — CMD, không cần Android Studio, không cần PowerShell**
-(cần **Java 17+**: tải tại <https://adoptium.net>):
+(cần **JDK 17+**: tải tại <https://adoptium.net> — xem chi tiết ngay dưới):
+
+**Cần cài trước 2 thứ:**
+
+1. **JDK 17+** (bắt buộc) — `sdkmanager`/`avdmanager` chạy bằng Java và tự kiểm tra phiên bản:
+   *"This tool requires JDK 17 or later"*. Bản nào cũng được (Temurin / OpenJDK / Microsoft
+   Build of OpenJDK / Oracle); **JDK 21 chạy tốt**. Khi cài Temurin trên Windows nhớ tick
+   **Add to PATH** + **Set JAVA_HOME**, rồi kiểm tra bằng `java -version`.
+   → Java **chỉ** cần cho bước cài/tạo máy ảo: **emulator** (QEMU) và **app emu-sync**
+   chạy không cần Java. Nếu đã có Android Studio, có thể trỏ `JAVA_HOME` vào JDK bundled của nó
+   (`C:\Program Files\Android\Android Studio\jbr`).
+2. **Tăng tốc phần cứng** — bật **Windows Hypervisor Platform**
+   (*Turn Windows features on or off* → tick → khởi động lại) và bật **VT-x/AMD-V** trong BIOS.
+   Google hiện khuyến nghị WHPX; driver **AEHD/GVM** sẽ ngừng hỗ trợ sau **31/12/2026**.
+   Kiểm tra: `%SDK%\emulator\emulator -accel-check` → mong đợi `WHPX (...) is installed and usable`.
 
 ```bat
 scripts\dev_avd_windows.bat create   :: tải emulator + system image (~2GB), tạo emu1/emu2
@@ -105,9 +122,10 @@ scripts\dev_avd_windows.bat start    :: mở 2 máy ảo (mỗi máy 1 cửa s�
 scripts\dev_avd_windows.bat stop
 ```
 
+- Script tự tải **cmdline-tools** (không cần cài riêng), **emulator** và system image
+  `system-images;android-35;google_apis;x86_64` — Windows dùng image **x86_64** (Mac Apple
+  Silicon dùng `arm64-v8a`), tổng ~5GB, chỉ tải 1 lần.
 - Script tự bật `hw.keyboard=yes` (điều kiện để gõ phím + sync bàn phím).
-- Nếu emulator báo thiếu tăng tốc: bật **Windows Hypervisor Platform** trong
-  *Turn Windows features on or off* rồi khởi động lại máy.
 
 **Build file `.exe`** (chạy trên Windows, PyInstaller không cross-compile):
 
