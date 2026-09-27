@@ -19,11 +19,36 @@ SDKMANAGER="${SDKMANAGER:-$([ -x "$SDKMGR_LOCAL" ] && echo "$SDKMGR_LOCAL" || co
 AVDMANAGER="${AVDMANAGER:-$([ -x "$AVDMGR_LOCAL" ] && echo "$AVDMGR_LOCAL" || command -v avdmanager)}"
 export ANDROID_HOME="$SDK"
 
+# Cài package SDK: cmdline-tools mới (23.0) có CLI `android sdk install` — **tự chấp nhận license**.
+# `sdkmanager --licenses` đã bị bỏ (in "--licenses option is no longer needed" và KHÔNG tạo file
+# license) nên nếu dùng nó, package sẽ bị skip: "license is not accepted".
+ANDROIDCLI="${ANDROIDCLI:-$([ -x "$SDK/cmdline-tools/latest/bin/android" ] && echo "$SDK/cmdline-tools/latest/bin/android" || command -v android || true)}"
+
+install_packages() {
+  if [ -n "$ANDROIDCLI" ]; then
+    "$ANDROIDCLI" sdk --sdk="$SDK" install "$@"
+  else
+    # cmdline-tools cũ: chấp nhận license bằng pipe "y" rồi cài
+    yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses >/dev/null 2>&1 || true
+    "$SDKMANAGER" --sdk_root="$SDK" "$@"
+  fi
+}
+
 create() {
-  yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses >/dev/null 2>&1 || true
-  # Lưu ý: sdkmanager mới (2026) bỏ verb "install" — chỉ cần liệt kê package.
   # Cài cmdline-tools vào CHÍNH SDK root để avdmanager tìm đúng system-images.
-  "$SDKMANAGER" --sdk_root="$SDK" "platform-tools" "emulator" "cmdline-tools;latest" "$IMAGE"
+  install_packages "platform-tools" "emulator" "cmdline-tools;latest" "$IMAGE"
+
+  # Kiểm tra cài thật sự thành công (tránh lỗi dây chuyền khó hiểu ở bước sau)
+  if [ ! -x "$EMU" ]; then
+    echo "[LỖI] Chưa cài được emulator ($EMU). Xem thông báo phía trên." >&2
+    return 1
+  fi
+  local image_dir="$SDK/${IMAGE//;//}"
+  if [ ! -d "$image_dir" ]; then
+    echo "[LỖI] Chưa cài được system image $IMAGE ($image_dir)." >&2
+    return 1
+  fi
+
   # avdmanager trong SDK root giờ đã có → dùng nó (avdmanager của brew tìm sai SDK root)
   if [ -x "$AVDMGR_LOCAL" ]; then AVDMANAGER="$AVDMGR_LOCAL"; fi
   for name in emu1 emu2; do
@@ -32,8 +57,17 @@ create() {
     else
       echo no | "$AVDMANAGER" create avd -n "$name" -k "$IMAGE" -d pixel_6 --force
       # Bật bàn phím phần cứng: cho phép gõ từ bàn phím host + sync bàn phím
-      sed -i.bak 's/^hw.keyboard=no$/hw.keyboard=yes/' "$HOME/.android/avd/$name.avd/config.ini"
-      rm -f "$HOME/.android/avd/$name.avd/config.ini.bak"
+      local cfg="$HOME/.android/avd/$name.avd/config.ini"
+      if [ ! -f "$cfg" ]; then
+        echo "[LỖI] Tạo AVD $name thất bại (không thấy $cfg)." >&2
+        return 1
+      fi
+      if grep -q '^hw.keyboard=' "$cfg"; then
+        sed -i.bak 's/^hw.keyboard=.*/hw.keyboard=yes/' "$cfg"
+      else
+        printf '\nhw.keyboard=yes\n' >>"$cfg"
+      fi
+      rm -f "$cfg.bak"
       echo "Đã tạo AVD $name (hw.keyboard=yes)"
     fi
   done

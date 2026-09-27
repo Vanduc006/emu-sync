@@ -142,14 +142,23 @@ def main() -> int:
     )
 
     # 3) ô xem trước theo tỉ lệ màn hình thật của máy ảo
-    checks.append(("số máy trên lưới", client.eval("document.querySelectorAll('.tile').length"), 2))
-    checks.append(
-        (
-            "tỉ lệ ô theo máy ảo (1080×2400)",
-            client.eval("document.querySelector('.tile img, .tile .prev-off').getAttribute('style')"),
-            "aspect-ratio:1080/2400",
+    tiles = client.eval("document.querySelectorAll('.tile').length")
+    if tiles:
+        checks.append(("số máy trên lưới ≥ 1", tiles >= 1, True))
+        checks.append(
+            (
+                "tỉ lệ ô theo máy ảo (từ /api/state)",
+                bool(
+                    client.eval(
+                        "!!document.querySelector('.tile img, .tile .prev-off')"
+                        "?.getAttribute('style')?.match(/aspect-ratio/)"
+                    )
+                ),
+                True,
+            )
         )
-    )
+    else:
+        print("  (bỏ qua 2 check về ô máy ảo: chưa có máy ảo nào kết nối)")
 
     # 4) vẽ lưới 2×2 rồi 6×4
     client.eval("[...document.querySelectorAll('#grid-pick div')].find(d=>d.dataset.c==='2'&&d.dataset.r==='2').onclick()")

@@ -671,7 +671,7 @@ async function refreshAvds() {
       const current = sel.value;
       sel.innerHTML = avdImageData.length
         ? avdImageData.map((i) => `<option value="${i}">${i.replace("system-images;", "")}</option>`).join("")
-        : `<option value="">(chưa có image — xem README)</option>`;
+        : `<option value="">(chưa có system image — chạy scripts\\dev_avd_windows.bat create trên Windows, hoặc scripts/dev_avd.sh create trên macOS)</option>`;
       if (current) sel.value = current;
     }
     const presetSel = $("avd-preset");

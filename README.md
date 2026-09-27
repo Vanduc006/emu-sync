@@ -122,10 +122,13 @@ scripts\dev_avd_windows.bat start    :: mở 2 máy ảo (mỗi máy 1 cửa s�
 scripts\dev_avd_windows.bat stop
 ```
 
-- Script tự tải **cmdline-tools** (không cần cài riêng), **emulator** và system image
+- Script tự tải **cmdline-tools 23.0** (máy đã có bản cũ 19.0 sẽ được **tự nâng cấp** — bản cũ
+  không tự chấp nhận license nên emulator/image bị skip), **emulator** và system image
   `system-images;android-35;google_apis;x86_64` — Windows dùng image **x86_64** (Mac Apple
   Silicon dùng `arm64-v8a`), tổng ~5GB, chỉ tải 1 lần.
 - Script tự bật `hw.keyboard=yes` (điều kiện để gõ phím + sync bàn phím).
+- **License**: `sdkmanager --licenses` đã bị Google bỏ ở cmdline-tools mới (in ra *"--licenses
+  option is no longer needed"*). Script dùng CLI mới `android sdk install` — **tự chấp nhận license**.
 
 **Build file `.exe`** (chạy trên Windows, PyInstaller không cross-compile):
 
@@ -201,6 +204,8 @@ uv run python scripts/ui_smoke.py                       # bố cục lưới + e
 | Session "lỗi kết nối" | Bấm **Thử lại kết nối** trong Nâng cao (app cũng tự thử lại mỗi 10s) |
 | Cổng bận khi mở app | App tự chọn cổng trống kế tiếp — xem dòng `UI nội bộ: http://…` trong terminal |
 | Chạy nhầm 2 app cùng lúc | Chỉ chạy **1** app/`ui` cho mỗi master (2 instance sẽ inject trùng) |
+| `Skipping following packages as the license is not accepted` khi tạo AVD | cmdline-tools mới **bỏ `sdkmanager --licenses`** ("--licenses option is no longer needed") nên bản 19.0 không nhận license được. Chạy lại `scripts\dev_avd_windows.bat create` (Windows) / `scripts/dev_avd.sh create` (macOS) — script tự nâng cấp cmdline-tools 23.0 và dùng `android sdk install` (tự chấp nhận license). Thủ công: `%SDK%\cmdline-tools\latest\bin\android.exe sdk --sdk="%SDK%" install "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"` |
+| `Error: Package path is not valid. Valid system image paths are: null` | Hệ quả của dòng trên: system image chưa được cài (do license chưa accept) → xử lý dòng trên rồi chạy lại |
 
 ## Cấu trúc
 
